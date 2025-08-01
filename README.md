@@ -2,7 +2,7 @@
 
 ## Установка и настройка
 
-### 1. Установка Go на сервер (Ubuntu/Debian)
+### 1. Установка Go на сервер
 
 ```bash
 # Обновление пакетов и установка Go
@@ -16,7 +16,10 @@ go version
 echo 'export GOPATH=$HOME/go' >> ~/.bashrc
 echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
 source ~/.bashrc
+```
 
+### 2. Запуск проекта
+```bash
 # Клонирование репозитория
 git clone https://github.com/ваш/репозиторий.git
 cd репозиторий
