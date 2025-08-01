@@ -21,8 +21,8 @@ source ~/.bashrc
 ### 2. Запуск проекта
 ```bash
 # Клонирование репозитория
-git clone https://github.com/ваш/репозиторий.git
-cd репозиторий
+git clone https://github.com/Nikita-bot/Psychologist-Portal.git
+cd Psychologist-Portal
 
 # Установка зависимостей
 go mod download
