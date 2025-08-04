@@ -41,7 +41,7 @@ type Slot struct {
 }
 
 type SlotDate struct {
-	Day      string `json:"date" db:"day"`
+	Day      string `json:"day" db:"day"`
 	IsActive bool   `json:"is_active" db:"is_active"`
 }
 
@@ -64,6 +64,20 @@ func initDB(db *sql.DB) {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		time TEXT NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS slots_day (
+		day TEXT UNIQUE,
+		is_active INTEGER
+	);
+
+	INSERT OR IGNORE INTO slots_day (day, is_active) VALUES
+	('sunday', 0), 
+    ('tuesday', 0),
+    ('wednesday', 0),
+    ('thursday', 0),
+    ('friday', 0),
+    ('saturday', 0),
+    ('monday', 0);
 	`
 
 	_, err := db.Exec(sqlStmt)
@@ -88,6 +102,7 @@ func initConfig() *Config {
 }
 
 func saveFormToDB(db *sql.DB, form UserForm) error {
+	log.Println(form)
 	stmt, err := db.Prepare(`
 		INSERT INTO consultations(fio, phone, position, comment, meet_date, meet_time)
 		VALUES(?, ?, ?, ?, ?, ?)
@@ -515,6 +530,104 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"status": "error"})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}, c))
+
+	mux.HandleFunc("GET /slots/days", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT day, is_active FROM slots_day")
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+			return
+		}
+		defer rows.Close()
+
+		var days []SlotDate
+		for rows.Next() {
+			var day SlotDate
+			var isActive int
+			if err := rows.Scan(&day.Day, &isActive); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to scan day"})
+				return
+			}
+			day.IsActive = isActive == 1
+			days = append(days, day)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"days":   days,
+		})
+	}, c))
+
+	mux.HandleFunc("PATCH /slots/days", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		// Ожидаем массив объектов {day, active}
+		var days []SlotDate
+
+		if err := json.NewDecoder(r.Body).Decode(&days); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":   "Invalid request body",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		log.Println("Days: ", days)
+
+		tx, err := db.Begin()
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+			return
+		}
+
+		if _, err := tx.Exec("UPDATE slots_day SET is_active = 0"); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to reset days"})
+			return
+		}
+
+		for _, day := range days {
+			if _, err := tx.Exec(
+				"UPDATE slots_day SET is_active = ? WHERE day = ?",
+				day.IsActive,
+				day.Day,
+			); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to update day: " + day.Day,
+				})
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Transaction failed"})
+			tx.Rollback()
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")

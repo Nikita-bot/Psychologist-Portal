@@ -82,10 +82,42 @@
             background-color: #2980b9;
         }
         
+        .weekdays-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .weekday-btn {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        
+        .weekday-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+
+        .weekday-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
         .slots-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 20px;
+            margin-top: 20px;
         }
         
         .slot-card {
@@ -144,6 +176,18 @@
         .btn-delete:hover {
             background-color: #c0392b;
         }
+        
+        .save-days-btn {
+            padding: 12px;
+            background-color: #2ecc71;
+            color: white;
+        }
+
+        .save-days-btn:hover{
+            background-color: #2fb667;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -160,7 +204,22 @@
             </div>
         </div>
         
-        <div class="slots-list">
+        <!-- Блок дней недели -->
+        <div class="weekdays-container" id="weekdaysContainer">
+            <div class="weekday-btn" data-day="monday">Понедельник</div>
+            <div class="weekday-btn" data-day="tuesday">Вторник</div>
+            <div class="weekday-btn" data-day="wednesday">Среда</div>
+            <div class="weekday-btn" data-day="thursday">Четверг</div>
+            <div class="weekday-btn" data-day="friday">Пятница</div>
+
+            <button class="btn save-days-btn" id="saveDaysBtn">
+                <i class="bi bi-save"></i> Сохранить дни
+            </button>
+        </div>
+        
+        
+        <!-- Список слотов -->
+        <div class="slots-list" id="slotsList">
             {{range .}}
             <div class="slot-card">
                 <div class="slot-time">{{.Time}}</div>
@@ -205,45 +264,117 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Создание нового слота
-        document.getElementById('createSlotBtn').addEventListener('click', async () => {
-            const time = document.getElementById('slotTime').value;
-            
-            if (!time) {
-                alert('Укажите время слота');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/slots', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        time: time
-                    })
-                });
-                
-                if (response.ok) {
-                    window.location.reload();
-                } else {
-                    throw new Error('Ошибка создания слота');
+        // При загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            // Запрос для получения дней
+            fetch('/slots/days')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Не удалось создать слот');
-            }
-        });
-        
-        // Удаление слота
-        async function deleteSlot(button) {
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Сбрасываем все кнопки
+                    document.querySelectorAll('.weekday-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    console.log(data)
+                    // Помечаем активные дни
+                    data.days.forEach(day => {
+                        if (day.is_active) {
+                            const btn = document.querySelector(`.weekday-btn[data-day="${day.day}"]`);
+                            if (btn) btn.classList.add('active');
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching days:', error);
+                alert('Failed to load days: ' + error.message);
+            });
+            
+            // Обработчик клика по дням
+            document.querySelectorAll('.weekday-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                });
+            });
+                
+            // Сохранение дней
+            document.getElementById('saveDaysBtn').addEventListener('click', async () => {
+                const days = Array.from(document.querySelectorAll('.weekday-btn')).map(btn => ({
+                    day: btn.getAttribute('data-day'),
+                    is_active: btn.classList.contains('active')
+                }));
+
+                try {
+                    const response = await fetch('/slots/days', {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(days)
+                    });
+
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Неизвестная ошибка сервера');
+                    }
+
+                    if (result.status === 'success') {
+                        alert('Дни успешно сохранены!');
+                    } else {
+                        throw new Error(result.message || 'Не удалось сохранить дни');
+                    }
+                } catch (error) {
+                    console.error('Ошибка сохранения дней:', error);
+                    alert('Ошибка сохранения: ' + error.message);
+                }
+            });
+
+            // Создание нового слота
+            document.getElementById('createSlotBtn').addEventListener('click', async () => {
+                const time = document.getElementById('slotTime').value;
+                
+                if (!time) {
+                    alert('Укажите время слота');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/slots', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            time: time
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        throw new Error('Ошибка создания слота');
+                    }
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                    alert('Не удалось создать слот');
+                }
+            });
+            
+            // Удаление слота
+            async function deleteSlot(button) {
             const id = button.getAttribute('data-id');
             if (confirm('Удалить слот?')) {
                 fetch(`/slots?id=${id}`, { method: 'DELETE' })
                     .then(response => response.ok && window.location.reload());
             }
         }
+        });
     </script>
 </body>
 </html>
