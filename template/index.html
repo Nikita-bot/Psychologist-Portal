@@ -334,7 +334,7 @@
                     <label class="form-label" for="phone">
                         <i class="bi bi-telephone form-icon"></i>Ваш номер телефона
                     </label>
-                    <input type="tel" class="form-control" id="phone" placeholder="+7 (900) 123-45-67" maxlength="11" pattern="[0-9]{11}" oninput="this.value = this.value.replace(/\D/g, '')" required>
+                    <input type="tel" class="form-control" id="phone" placeholder="8 (900) 123-45-67" maxlength="11" pattern="[0-9]{11}" oninput="this.value = this.value.replace(/\D/g, '')" required>
                 </div>
                 <div class="btn-container">
                     <button type="button" class="btn btn-prev" data-prev="1">Назад</button>
@@ -350,24 +350,28 @@
                     </label>
                     <div class="radio-group">
                         <div class="radio-option">
-                            <input type="radio" id="manager" name="position" value="Менеджер">
-                            <label for="manager">Менеджер</label>
+                            <input type="radio" id="junior" name="position" value="Менеджер">
+                            <label for="manager">Младший мед. персонал</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="developer" name="position" value="Разработчик">
-                            <label for="developer">Разработчик</label>
+                            <input type="radio" id="middle" name="position" value="Разработчик">
+                            <label for="developer">Средний мед. персонал</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="designer" name="position" value="Дизайнер">
-                            <label for="designer">Дизайнер</label>
+                            <input type="radio" id="doctor" name="position" value="Дизайнер">
+                            <label for="designer">Врач</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="analyst" name="position" value="Аналитик">
-                            <label for="analyst">Аналитик</label>
+                            <input type="radio" id="sister" name="position" value="Аналитик">
+                            <label for="analyst">Мед. сестра</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="director" name="position" value="Руководитель">
-                            <label for="director">Руководитель</label>
+                            <input type="radio" id="administration" name="position" value="Руководитель">
+                            <label for="director">Администрация</label>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="other" name="position" value="Руководитель">
+                            <label for="director">Другое</label>
                         </div>
                     </div>
                 </div>
@@ -399,9 +403,6 @@
                         <p>Длительность сессии 45 минут</p>
                     </label>
                     <select class="form-select" id="time" required>
-                        <!-- <option value="" disabled selected>Выберите время</option> -->
-                        <!-- <option value="12:00">12:00</option>
-                        <option value="12:50">12:50</option> -->
                     </select>
                 </div>
                 <div class="btn-container">
@@ -629,24 +630,20 @@
                 });
             });
             
-            // Кнопка перезапуска формы
+            
             restartBtn.addEventListener('click', function() {
-                // Сброс формы
+                
                 form.reset();
                 
-                // Сброс радио кнопок
                 radioOptions.forEach(opt => opt.classList.remove('selected'));
                 
-                // Переход к первому шагу
                 goToStep(1);
             });
             
-            // Установка минимальной даты (сегодня)
             const today = new Date();
             const minDate = today.toISOString().split('T')[0];
             document.getElementById('date').min = minDate;
             
-            // Установка максимальной даты (через 3 месяца)
             const maxDate = new Date();
             maxDate.setMonth(maxDate.getMonth() + 3);
             document.getElementById('date').max = maxDate.toISOString().split('T')[0];
@@ -659,8 +656,6 @@
                 }
             });
             
-            
-            // Инициализация прогресса
             updateProgress();
         });
 

@@ -40,6 +40,11 @@ type Slot struct {
 	Time string `json:"time" db:"time"`
 }
 
+type SlotDate struct {
+	Day      string `json:"date" db:"day"`
+	IsActive bool   `json:"is_active" db:"is_active"`
+}
+
 func initDB(db *sql.DB) {
 
 	// Создаем таблицу если ее нет
