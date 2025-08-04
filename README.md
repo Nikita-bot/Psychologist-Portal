@@ -1,0 +1,32 @@
+# Проект на Go
+
+## Установка и настройка
+
+### 1. Установка Go на сервер
+
+```bash
+# Обновление пакетов и установка Go
+sudo apt update
+sudo apt install -y golang
+
+# Проверка установленной версии
+go version
+
+# Настройка GOPATH (если нужно)
+echo 'export GOPATH=$HOME/go' >> ~/.bashrc
+echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 2. Запуск проекта
+```bash
+# Клонирование репозитория
+git clone https://github.com/Nikita-bot/Psychologist-Portal.git
+cd Psychologist-Portal
+
+# Установка зависимостей
+go mod download
+
+# Непосредственный запуск
+go run main.go
+```
