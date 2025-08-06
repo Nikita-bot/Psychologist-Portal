@@ -318,7 +318,8 @@
                 <div class="step" data-step="3"><span>3</span><div class="step-label">Должность</div></div>
                 <div class="step" data-step="4"><span>4</span><div class="step-label">Дата</div></div>
                 <div class="step" data-step="5"><span>5</span><div class="step-label">Время</div></div>
-                <div class="step" data-step="6"><span>6</span><div class="step-label">Комментарий</div></div>
+                <div class="step" data-step="6"><span>6</span><div class="step-label">Психолог</div></div>
+                <div class="step" data-step="7"><span>7</span><div class="step-label">Комментарий</div></div>
             </div>
         </div>
         
@@ -419,9 +420,23 @@
                     <button type="button" class="btn btn-next" data-next="6">Далее</button>
                 </div>
             </div>
-     
-            <!-- Шаг 6: Комментарий -->
+
+            <!-- Шаг 6: Психолог -->
             <div class="form-step" data-step="6">
+                <div class="form-group">
+                    <label class="form-label" for="employee">
+                        <i class="bi bi-person-heart form-icon"></i>Выберите своего психолога
+                    </label>
+                    <select class="form-select" id="employee"></select>
+                </div>
+                <div class="btn-container">
+                    <button type="button" class="btn btn-prev" data-prev="5">Назад</button>
+                    <button type="button" class="btn btn-next" data-next="7">Далее</button>
+                </div>
+            </div>
+     
+            <!-- Шаг 7: Комментарий -->
+            <div class="form-step" data-step="7">
                 <div class="form-group">
                     <label class="form-label" for="comment">
                         <i class="bi bi-chat-dots form-icon"></i>Дополнительный комментарий
@@ -429,13 +444,13 @@
                     <textarea class="form-control" id="comment" rows="4" placeholder="Опишите детали вашего запроса..."></textarea>
                 </div>
                 <div class="btn-container">
-                    <button type="button" class="btn btn-prev" data-prev="5">Назад</button>
+                    <button type="button" class="btn btn-prev" data-prev="6">Назад</button>
                     <button type="submit" class="btn btn-submit">Отправить</button>
                 </div>
             </div>
             
             <!-- Шаг 7: Успешное завершение -->
-            <div class="form-step success-message" data-step="7">
+            <div class="form-step success-message" data-step="8">
                 <div class="success-icon">
                     <i class="bi bi-check-circle"></i>
                 </div>
@@ -449,7 +464,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Текущий шаг
             let currentStep = 1;
-            const totalSteps = 6;
+            const totalSteps = 7;
             let times = [];
 
             fetch('/slots/days')
@@ -527,19 +542,15 @@
             const radioOptions = document.querySelectorAll('.radio-option');
             radioOptions.forEach(option => {
                 option.addEventListener('click', function() {
-                    // Убираем выделение у всех опций
                     radioOptions.forEach(opt => opt.classList.remove('selected'));
                     
-                    // Добавляем выделение к выбранной опции
                     this.classList.add('selected');
                     
-                    // Ставим отметку на радио кнопке
                     const radioInput = this.querySelector('input');
                     radioInput.checked = true;
                 });
             });
             
-            // Обновление индикатора прогресса
             function updateProgress() {
                 const progressPercent = ((currentStep - 1) / totalSteps) * 100;
                 progressBar.style.width = progressPercent + '%';
@@ -558,14 +569,11 @@
             }
 
             
-            // Переход к шагу
             function goToStep(step) {
-                // Скрываем все шаги
                 formSteps.forEach(formStep => {
                     formStep.classList.remove('active');
                 });
                 
-                // Показываем текущий шаг
                 document.querySelector(`.form-step[data-step="${step}"]`).classList.add('active');
                 
                 currentStep = step;
@@ -577,7 +585,6 @@
                 button.addEventListener('click', function() {
                     const nextStep = parseInt(this.dataset.next);
                     
-                    // Проверка заполнения текущего шага
                     let isValid = true;
                     
                     if (nextStep === 2) {
@@ -643,10 +650,44 @@
     
                     } else if (nextStep === 6) {
                         const time = document.getElementById('time').value;
+                        const empSelect = document.getElementById('employee');
                         if (!time) {
                             alert('Пожалуйста, выберите время');
                             isValid = false;
                         }
+                        fetch('/employees_ind').then(response => {
+                                if (!response.ok) throw new Error('Ошибка сети');
+                                return response.json();
+                            })
+                            .then(json => {
+                                console.log(json);
+                                const employees = json; 
+                                empSelect.innerHTML = '';
+                                if (employees.length === 0) {
+                                    empSelect.innerHTML = '<option value="" disabled>Нет свободных сотрудников.</option>';
+                                } else {
+                                    const defaultOption = document.createElement('option');
+                                    defaultOption.value = "";
+                                    defaultOption.selected = true;
+                                    defaultOption.textContent = "Не важно";
+                                    empSelect.appendChild(defaultOption);
+                                    
+                                    employees.forEach(emp => {
+                                        const option = document.createElement('option');
+                                        option.value = emp;
+                                        option.textContent = emp;
+                                        empSelect.appendChild(option);
+                                    });
+                                    
+                                    empSelect.disabled = false;
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Ошибка:', error);
+                            });
+                    }
+                    else if (nextStep === 7) {
+                        const comment = document.getElementById('comment').value;
                     }
                     
                     if (isValid) {
@@ -672,11 +713,13 @@
                     fio: document.getElementById('fullname').value,
                     phone: document.getElementById('phone').value,
                     position: document.querySelector('input[name="position"]:checked')?.value || '',
+                    psyholog: document.getElementById('employee')?.value || '',
                     type: "Индивидуальная консультация",
                     comment:document.getElementById('comment').value,
                     meet_date: document.getElementById('date').value,
                     meet_time: document.getElementById('time').value
                 };
+                
 
                 // Отправляем POST-запрос
                 fetch('/event', {
@@ -694,7 +737,7 @@
                 })
                 .then(data => {
                     console.log('Успешно:', data);
-                    goToStep(7);
+                    goToStep(8);
                 })
                 .catch(error => {
                     console.error('Ошибка:', error);

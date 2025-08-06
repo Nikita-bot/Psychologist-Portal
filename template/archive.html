@@ -227,6 +227,9 @@
                             <p><strong><i class="bi bi-clock"></i> Время:</strong> {{.Time}}</p>
                             <p><strong><i class="bi bi-telephone"></i> Телефон:</strong> {{.Phone}}</p>
                             <p><strong><i class="bi bi-fonts"></i> Тип:</strong> {{.TypeEvent}}</p>
+                            {{if .Psyholog}}
+                            <p><strong><i class="bi bi-person-heart"></i> Сотрудник:</strong> {{.Psyholog}}</p>
+                            {{end}}
                             {{if .Comment}}
                             <p><strong><i class="bi bi-chat-left-text"></i> Комментарий:</strong> {{.Comment}}</p>
                             {{end}}

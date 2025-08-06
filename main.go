@@ -22,6 +22,7 @@ type UserForm struct {
 	Date      string `json:"meet_date" db:"meet_date"`
 	TypeEvent string `json:"type" db:"type"`
 	Time      string `json:"meet_time" db:"meet_time"`
+	Psyholog  string `json:"psyholog" db:"psyholog"`
 	Comment   string `json:"comment" db:"comment"`
 }
 
@@ -46,6 +47,12 @@ type Slot struct {
 type SlotDate struct {
 	Day      string `json:"day" db:"day"`
 	IsActive bool   `json:"is_active" db:"is_active"`
+}
+
+type Employees struct {
+	ID       int    `json:"id" db:"id"`
+	FullName string `json:"name" db:"name"`
+	Telegram string `json:"tg" db:"tg"`
 }
 
 const (
@@ -87,6 +94,12 @@ func initDB(db *sql.DB) {
 			is_active INTEGER
 		);
 
+		CREATE TABLE IF NOT EXISTS employees (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			tg TEXT NOT NULL
+		);
+
 		INSERT OR IGNORE INTO slots_day (day, is_active) VALUES
 		('sunday', 0), 
 		('tuesday', 0),
@@ -111,7 +124,6 @@ func initDB(db *sql.DB) {
 		log.Fatalf("Ошибка создания таблицы: %v", err)
 	}
 
-	// Проверяем и добавляем колонку type если ее нет
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('consultations') WHERE name='type'").Scan(&count)
 	if err != nil {
@@ -121,6 +133,19 @@ func initDB(db *sql.DB) {
 
 	if count == 0 {
 		_, err = db.Exec("ALTER TABLE consultations ADD COLUMN type TEXT NOT NULL DEFAULT ''")
+		if err != nil {
+			log.Printf("Ошибка добавления колонки: %v", err)
+		}
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('consultations') WHERE name='psyholog'").Scan(&count)
+	if err != nil {
+		log.Printf("Ошибка проверки колонки: %v", err)
+		return
+	}
+
+	if count == 0 {
+		_, err = db.Exec("ALTER TABLE consultations ADD COLUMN psyholog TEXT DEFAULT ''")
 		if err != nil {
 			log.Printf("Ошибка добавления колонки: %v", err)
 		}
@@ -143,10 +168,12 @@ func initConfig() *Config {
 }
 
 func saveFormToDB(db *sql.DB, form UserForm) error {
-	log.Println(form)
+	log.Printf("Данные формы:\nFIO: %s\nPhone: %s\nPosition: %s\nPsyholog: %s\nComment: %s\nType: %s\nDate: %s\nTime: %s\n",
+		form.FIO, form.Phone, form.Position, form.Psyholog,
+		form.Comment, form.TypeEvent, form.Date, form.Time)
 	stmt, err := db.Prepare(`
-		INSERT INTO consultations(fio, phone, position, comment, type, meet_date, meet_time)
-		VALUES(?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO consultations(fio, phone, position, psyholog, comment, type, meet_date, meet_time)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		log.Println(err.Error())
@@ -154,7 +181,10 @@ func saveFormToDB(db *sql.DB, form UserForm) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(form.FIO, form.Phone, form.Position, form.Comment, form.TypeEvent, form.Date, form.Time)
+	_, err = stmt.Exec(form.FIO, form.Phone, form.Position, form.Psyholog, form.Comment, form.TypeEvent, form.Date, form.Time)
+	if err != nil {
+		log.Println(err.Error())
+	}
 	return err
 }
 
@@ -196,7 +226,7 @@ func getFormsByDays(db *sql.DB) ([]DayView, error) {
 
 	// Получаем все записи
 	rows, err := db.Query(`
-        SELECT id, fio, phone, position, comment, type, meet_date, meet_time 
+        SELECT id, fio, phone, position, psyholog, comment, type, meet_date, meet_time 
         FROM consultations 
         WHERE date(meet_date) BETWEEN date('now') AND date('now', '+7 days')
         ORDER BY meet_date, meet_time
@@ -210,7 +240,7 @@ func getFormsByDays(db *sql.DB) ([]DayView, error) {
 	dateMap := make(map[string][]UserForm)
 	for rows.Next() {
 		var f UserForm
-		err := rows.Scan(&f.ID, &f.FIO, &f.Phone, &f.Position, &f.Comment, &f.TypeEvent, &f.Date, &f.Time)
+		err := rows.Scan(&f.ID, &f.FIO, &f.Phone, &f.Position, &f.Psyholog, &f.Comment, &f.TypeEvent, &f.Date, &f.Time)
 		if err != nil {
 			return nil, err
 		}
@@ -241,6 +271,7 @@ func getArchiveConsultations(db *sql.DB) ([]DayView, error) {
             fio, 
             phone, 
             position,
+			psyholog,
 			type, 
             meet_date, 
             meet_time, 
@@ -273,6 +304,7 @@ func getArchiveConsultations(db *sql.DB) ([]DayView, error) {
 			&form.FIO,
 			&form.Phone,
 			&form.Position,
+			&form.Psyholog,
 			&form.TypeEvent,
 			&form.Date,
 			&form.Time,
@@ -436,6 +468,7 @@ func main() {
 	mux.HandleFunc("POST /event", func(w http.ResponseWriter, r *http.Request) {
 
 		if r.Method != http.MethodPost {
+			log.Println(err.Error())
 			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 			return
 		}
@@ -443,6 +476,7 @@ func main() {
 		var form UserForm
 		err := json.NewDecoder(r.Body).Decode(&form)
 		if err != nil {
+			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -650,7 +684,7 @@ func main() {
 		}
 	}, c))
 
-	mux.HandleFunc("GET /slots_ind", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /slots_ind", func(w http.ResponseWriter, r *http.Request) {
 
 		var s []Slot
 
@@ -665,7 +699,7 @@ func main() {
 			"status": "success",
 			"slots":  s,
 		})
-	}, c))
+	})
 
 	mux.HandleFunc("POST /slots", adminAuth(func(w http.ResponseWriter, r *http.Request) {
 
@@ -1002,6 +1036,168 @@ func main() {
 			log.Println(err.Error())
 			json.NewEncoder(w).Encode(map[string]string{"error": "Transaction failed"})
 			tx.Rollback()
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}, c))
+
+	mux.HandleFunc("GET /employees", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+
+		var emp []Employees
+
+		rows, err := db.Query(`
+			SELECT id, name, tg 
+			FROM employees 
+		`)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var e Employees
+			err := rows.Scan(&e.ID, &e.FullName, &e.Telegram)
+			if err != nil {
+				log.Println(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			emp = append(emp, e)
+		}
+
+		tmpl, err := template.ParseFiles("template/users.html")
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = tmpl.Execute(w, emp)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+	}, c))
+
+	mux.HandleFunc("GET /employees_ind", func(w http.ResponseWriter, r *http.Request) {
+
+		var empname []string
+
+		rows, err := db.Query(`
+			SELECT name 
+			FROM employees 
+		`)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var e string
+			err := rows.Scan(&e)
+			if err != nil {
+				log.Println(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			empname = append(empname, e)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(empname)
+	})
+
+	mux.HandleFunc("POST /employees", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var emp Employees
+		err := json.NewDecoder(r.Body).Decode(&emp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		result, err := db.Exec("INSERT INTO employees (name, tg) VALUES (?,?)", emp.FullName, emp.Telegram)
+		if err != nil {
+			http.Error(w, `{"error":"Failed to create slot"}`, http.StatusInternalServerError)
+			return
+		}
+
+		id, err := result.LastInsertId()
+		if err != nil {
+			http.Error(w, `{"error":"Failed to get slot ID"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id": id,
+		})
+	}, c))
+
+	mux.HandleFunc("DELETE /employees", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.URL.Query().Get("id")
+		if idStr == "" {
+			http.Error(w, `{"error": "Missing event ID"}`, http.StatusBadRequest)
+			return
+		}
+
+		eventID, err := strconv.Atoi(idStr)
+		if err != nil {
+			http.Error(w, `{"error": "Invalid event ID format"}`, http.StatusBadRequest)
+			return
+		}
+
+		_, err = db.Exec("DELETE FROM employees WHERE id = ?", eventID)
+		if err != nil {
+			http.Error(w, `{"error": "Invalid event ID format"}`, http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}, c))
+
+	mux.HandleFunc("PATCH /employees", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		var emp Employees
+
+		id := r.URL.Query().Get("id")
+		if id == "" {
+			log.Println(err.Error())
+			http.Error(w, "ID сотрудника не указан", http.StatusBadRequest)
+			return
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&emp); err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		log.Println("Emp: ", emp)
+
+		if _, err := db.Exec(
+			"UPDATE employees SET name = ?, tg = ? WHERE id = ?",
+			emp.FullName,
+			emp.Telegram,
+			id,
+		); err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
