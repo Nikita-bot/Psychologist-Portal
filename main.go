@@ -15,18 +15,21 @@ import (
 )
 
 type UserForm struct {
-	ID       int    `json:"id" db:"id"`
-	FIO      string `json:"fio" db:"fio"`
-	Phone    string `json:"phone" db:"phone"`
-	Position string `json:"position" db:"position"`
-	Date     string `json:"meet_date" db:"meet_date"`
-	Time     string `json:"meet_time" db:"meet_time"`
-	Comment  string `json:"comment" db:"comment"`
+	ID        int    `json:"id" db:"id"`
+	FIO       string `json:"fio" db:"fio"`
+	Phone     string `json:"phone" db:"phone"`
+	Position  string `json:"position" db:"position"`
+	Date      string `json:"meet_date" db:"meet_date"`
+	TypeEvent string `json:"type" db:"type"`
+	Time      string `json:"meet_time" db:"meet_time"`
+	Comment   string `json:"comment" db:"comment"`
 }
 
 type DayView struct {
-	Date  string
-	Forms []UserForm
+	Date      string
+	CountInd  int
+	CountRoom int
+	Forms     []UserForm
 }
 
 type Config struct {
@@ -45,44 +48,82 @@ type SlotDate struct {
 	IsActive bool   `json:"is_active" db:"is_active"`
 }
 
+const (
+	INDIVIDUAL = "Индивидуальная консультация"
+	ROOM       = "Комната психологической разгрузки"
+)
+
 func initDB(db *sql.DB) {
 
-	// Создаем таблицу если ее нет
 	sqlStmt := `
-	CREATE TABLE IF NOT EXISTS consultations (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		fio TEXT NOT NULL,
-		phone TEXT NOT NULL,
-		position TEXT NOT NULL,
-		comment	TEXT,
-		meet_date TEXT NOT NULL,
-		meet_time TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	
-	CREATE TABLE IF NOT EXISTS slots (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		time TEXT NOT NULL
-	);
+		CREATE TABLE IF NOT EXISTS consultations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			fio TEXT NOT NULL,
+			phone TEXT NOT NULL,
+			position TEXT NOT NULL,
+			comment TEXT,
+			meet_date TEXT NOT NULL,
+			meet_time TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 
-	CREATE TABLE IF NOT EXISTS slots_day (
-		day TEXT UNIQUE,
-		is_active INTEGER
-	);
+		CREATE TABLE IF NOT EXISTS slots (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			time TEXT NOT NULL
+		);
 
-	INSERT OR IGNORE INTO slots_day (day, is_active) VALUES
-	('sunday', 0), 
-    ('tuesday', 0),
-    ('wednesday', 0),
-    ('thursday', 0),
-    ('friday', 0),
-    ('saturday', 0),
-    ('monday', 0);
-	`
+		CREATE TABLE IF NOT EXISTS slots_day (
+			day TEXT UNIQUE,
+			is_active INTEGER
+		);
+
+		CREATE TABLE IF NOT EXISTS slots_room (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			time TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS slots_day_room (
+			day TEXT UNIQUE,
+			is_active INTEGER
+		);
+
+		INSERT OR IGNORE INTO slots_day (day, is_active) VALUES
+		('sunday', 0), 
+		('tuesday', 0),
+		('wednesday', 0),
+		('thursday', 0),
+		('friday', 0),
+		('saturday', 0),
+		('monday', 0);
+
+		INSERT OR IGNORE INTO slots_day_room (day, is_active) VALUES
+		('sunday', 0), 
+		('tuesday', 0),
+		('wednesday', 0),
+		('thursday', 0),
+		('friday', 0),
+		('saturday', 0),
+		('monday', 0);
+    `
 
 	_, err := db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatalf("Ошибка создания таблицы: %v", err)
+	}
+
+	// Проверяем и добавляем колонку type если ее нет
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('consultations') WHERE name='type'").Scan(&count)
+	if err != nil {
+		log.Printf("Ошибка проверки колонки: %v", err)
+		return
+	}
+
+	if count == 0 {
+		_, err = db.Exec("ALTER TABLE consultations ADD COLUMN type TEXT NOT NULL DEFAULT ''")
+		if err != nil {
+			log.Printf("Ошибка добавления колонки: %v", err)
+		}
 	}
 }
 
@@ -104,16 +145,43 @@ func initConfig() *Config {
 func saveFormToDB(db *sql.DB, form UserForm) error {
 	log.Println(form)
 	stmt, err := db.Prepare(`
-		INSERT INTO consultations(fio, phone, position, comment, meet_date, meet_time)
-		VALUES(?, ?, ?, ?, ?, ?)
+		INSERT INTO consultations(fio, phone, position, comment, type, meet_date, meet_time)
+		VALUES(?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
+		log.Println(err.Error())
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(form.FIO, form.Phone, form.Position, form.Comment, form.Date, form.Time)
+	_, err = stmt.Exec(form.FIO, form.Phone, form.Position, form.Comment, form.TypeEvent, form.Date, form.Time)
 	return err
+}
+
+func getCountByType(db *sql.DB, date string) []int {
+	var individualCount, roomCount int
+
+	// Запрос для индивидуальных консультаций
+	err := db.QueryRow(`
+        SELECT COUNT(*) 
+        FROM consultations 
+        WHERE meet_date = ? AND type = ?
+    `, date, INDIVIDUAL).Scan(&individualCount)
+	if err != nil {
+		return nil
+	}
+
+	// Запрос для комнаты разгрузки
+	err = db.QueryRow(`
+        SELECT COUNT(*) 
+        FROM consultations 
+        WHERE meet_date = ? AND type = ?
+    `, date, ROOM).Scan(&roomCount)
+	if err != nil {
+		return nil
+	}
+
+	return []int{individualCount, roomCount}
 }
 
 func getFormsByDays(db *sql.DB) ([]DayView, error) {
@@ -128,7 +196,7 @@ func getFormsByDays(db *sql.DB) ([]DayView, error) {
 
 	// Получаем все записи
 	rows, err := db.Query(`
-        SELECT id, fio, phone, position, comment, meet_date, meet_time 
+        SELECT id, fio, phone, position, comment, type, meet_date, meet_time 
         FROM consultations 
         WHERE date(meet_date) BETWEEN date('now') AND date('now', '+7 days')
         ORDER BY meet_date, meet_time
@@ -142,17 +210,22 @@ func getFormsByDays(db *sql.DB) ([]DayView, error) {
 	dateMap := make(map[string][]UserForm)
 	for rows.Next() {
 		var f UserForm
-		err := rows.Scan(&f.ID, &f.FIO, &f.Phone, &f.Position, &f.Comment, &f.Date, &f.Time)
+		err := rows.Scan(&f.ID, &f.FIO, &f.Phone, &f.Position, &f.Comment, &f.TypeEvent, &f.Date, &f.Time)
 		if err != nil {
 			return nil, err
 		}
 		dateMap[f.Date] = append(dateMap[f.Date], f)
 	}
 
+	var counts []int
+
 	// Сопоставляем с нашими днями
 	for i, day := range days {
 		if forms, ok := dateMap[day.Date]; ok {
 			days[i].Forms = forms
+			counts = getCountByType(db, day.Date)
+			days[i].CountInd = counts[0]
+			days[i].CountRoom = counts[1]
 		}
 	}
 
@@ -167,7 +240,8 @@ func getArchiveConsultations(db *sql.DB) ([]DayView, error) {
 			id,
             fio, 
             phone, 
-            position, 
+            position,
+			type, 
             meet_date, 
             meet_time, 
             comment
@@ -199,6 +273,7 @@ func getArchiveConsultations(db *sql.DB) ([]DayView, error) {
 			&form.FIO,
 			&form.Phone,
 			&form.Position,
+			&form.TypeEvent,
 			&form.Date,
 			&form.Time,
 			&form.Comment,
@@ -281,6 +356,30 @@ func getAllSlots(db *sql.DB) ([]Slot, error) {
 	return s, nil
 }
 
+func getAllSlotsRoom(db *sql.DB) ([]Slot, error) {
+
+	var s []Slot
+
+	rows, err := db.Query("SELECT id, time FROM slots_room ORDER BY time")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var slot Slot
+		if err := rows.Scan(&slot.ID, &slot.Time); err != nil {
+			return nil, fmt.Errorf("failed to scan slot: %w", err)
+		}
+		s = append(s, slot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return s, nil
+}
+
 func main() {
 
 	var err error
@@ -296,7 +395,33 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("./template/index.html")
+		tmpl, err := template.ParseFiles("./template/main.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = tmpl.Execute(w, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	mux.HandleFunc("GET /room", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("./template/room.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = tmpl.Execute(w, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	mux.HandleFunc("GET /event", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("./template/individual.html")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -389,7 +514,8 @@ func main() {
         SELECT meet_time 
         FROM consultations 
         WHERE meet_date = ? 
-        ORDER BY meet_time`, date)
+		AND type = ?
+        ORDER BY meet_time`, date, INDIVIDUAL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -413,6 +539,59 @@ func main() {
 			isBooked := false
 			for _, booked := range bookedTimes {
 				if booked == slot.Time {
+					isBooked = true
+					break
+				}
+			}
+			if !isBooked {
+				availableSlots = append(availableSlots, slot.Time)
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(availableSlots)
+	})
+
+	mux.HandleFunc("GET /available-times-room", func(w http.ResponseWriter, r *http.Request) {
+
+		date := r.URL.Query().Get("date")
+		if date == "" {
+			http.Error(w, "Date parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		rows, err := db.Query(`
+        SELECT COUNT(*), meet_time 
+        FROM consultations 
+        WHERE meet_date = ?
+		AND type = ?
+		GROUP BY meet_time
+        ORDER BY meet_time`, date, ROOM)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var bookedTimes = make(map[string]int)
+		for rows.Next() {
+			var time string
+			var count int
+			if err := rows.Scan(&count, &time); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			bookedTimes[time] = count
+		}
+
+		allSlots, _ := getAllSlotsRoom(db)
+
+		availableSlots := make([]string, 0)
+		for _, slot := range allSlots {
+			isBooked := false
+			for time, count := range bookedTimes {
+				if time == slot.Time && count >= 7 {
 					isBooked = true
 					break
 				}
@@ -469,6 +648,23 @@ func main() {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	}, c))
+
+	mux.HandleFunc("GET /slots_ind", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+
+		var s []Slot
+
+		s, err := getAllSlots(db)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"slots":  s,
+		})
 	}, c))
 
 	mux.HandleFunc("POST /slots", adminAuth(func(w http.ResponseWriter, r *http.Request) {
@@ -537,7 +733,88 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 	}, c))
 
-	mux.HandleFunc("GET /slots/days", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /slots_room", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+
+		slots, err := getAllSlotsRoom(db)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"slots":  slots,
+		})
+	}, c))
+
+	mux.HandleFunc("POST /slots_room", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var slot Slot
+		err := json.NewDecoder(r.Body).Decode(&slot)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if slot.Time == "" {
+			http.Error(w, `{"error":"Time is required"}`, http.StatusBadRequest)
+			return
+		}
+
+		result, err := db.Exec("INSERT INTO slots_room (time) VALUES (?)", slot.Time)
+		if err != nil {
+			http.Error(w, `{"error":"Failed to create slot"}`, http.StatusInternalServerError)
+			return
+		}
+
+		id, err := result.LastInsertId()
+		if err != nil {
+			http.Error(w, `{"error":"Failed to get slot ID"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":   id,
+			"time": slot.Time,
+		})
+
+	}, c))
+
+	mux.HandleFunc("DELETE /slots_room", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.URL.Query().Get("id")
+		if idStr == "" {
+			http.Error(w, `{"error": "Missing event ID"}`, http.StatusBadRequest)
+			return
+		}
+
+		slotID, err := strconv.Atoi(idStr)
+		if err != nil {
+			http.Error(w, `{"error": "Invalid event ID format"}`, http.StatusBadRequest)
+			return
+		}
+
+		_, err = db.Exec("DELETE FROM slots_room WHERE id = ?", slotID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"status": "error"})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}, c))
+
+	mux.HandleFunc("GET /slots/days", (func(w http.ResponseWriter, r *http.Request) {
 		rows, err := db.Query("SELECT day, is_active FROM slots_day")
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -569,7 +846,7 @@ func main() {
 			"status": "success",
 			"days":   days,
 		})
-	}, c))
+	}))
 
 	mux.HandleFunc("PATCH /slots/days", adminAuth(func(w http.ResponseWriter, r *http.Request) {
 		// Ожидаем массив объектов {day, active}
@@ -608,6 +885,104 @@ func main() {
 		for _, day := range days {
 			if _, err := tx.Exec(
 				"UPDATE slots_day SET is_active = ? WHERE day = ?",
+				day.IsActive,
+				day.Day,
+			); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Failed to update day: " + day.Day,
+				})
+				return
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Transaction failed"})
+			tx.Rollback()
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}, c))
+
+	mux.HandleFunc("GET /slots_room/days", (func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT day, is_active FROM slots_day_room")
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+			return
+		}
+		defer rows.Close()
+
+		var days []SlotDate
+		for rows.Next() {
+			var day SlotDate
+			var isActive int
+			if err := rows.Scan(&day.Day, &isActive); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				log.Println(err.Error())
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to scan day"})
+				return
+			}
+			day.IsActive = isActive == 1
+			days = append(days, day)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "success",
+			"days":   days,
+		})
+	}))
+
+	mux.HandleFunc("PATCH /slots_room/days", adminAuth(func(w http.ResponseWriter, r *http.Request) {
+		// Ожидаем массив объектов {day, active}
+		var days []SlotDate
+
+		if err := json.NewDecoder(r.Body).Decode(&days); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{
+				"error":   "Invalid request body",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		log.Println("Days ROOM: ", days)
+
+		tx, err := db.Begin()
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
+			return
+		}
+
+		if _, err := tx.Exec("UPDATE slots_day_room SET is_active = 0"); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Println(err.Error())
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to reset days"})
+			return
+		}
+
+		for _, day := range days {
+			if _, err := tx.Exec(
+				"UPDATE slots_day_room SET is_active = ? WHERE day = ?",
 				day.IsActive,
 				day.Day,
 			); err != nil {

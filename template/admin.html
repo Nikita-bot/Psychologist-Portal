@@ -14,6 +14,20 @@
             padding: 20px;
         }
 
+        .consultation-type {
+            margin-bottom: 30px;
+        }
+        
+        .consultation-title {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .admin-container {
             background-color: white;
             border-radius: 15px;
@@ -62,18 +76,17 @@
 
         .cards-row {
             display: flex;
-            flex-wrap: nowrap;
+            flex-wrap:wrap;
             overflow-x: auto;
             padding: 15px 5px;
             gap: 20px;
         }
-
+        
         .card {
             min-width: 280px;
             border: none;
             border-radius: 10px;
             box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-            transition: all 0.3s;
         }
 
         .card:hover {
@@ -120,25 +133,6 @@
             background-color: white;
             border-radius: 8px;
             border: 2px dashed #e0e0e0;
-        }
-
-        /* Кастомный скроллбар */
-        .cards-row::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .cards-row::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-
-        .cards-row::-webkit-scrollbar-thumb {
-            background: #3498db;
-            border-radius: 10px;
-        }
-
-        .cards-row::-webkit-scrollbar-thumb:hover {
-            background: #2980b9;
         }
 
         /* Кнопки действий */
@@ -239,31 +233,76 @@
             </div>
             
             {{if .Forms}}
-            <div class="cards-row">
-                {{range .Forms}}
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="bi bi-person"></i> {{.FIO}}</h5>
-                        <h6 class="card-subtitle"><i class="bi bi-briefcase"></i> {{.Position}}</h6>
-                        <div class="card-text">
-                            <p><strong><i class="bi bi-clock"></i> Время:</strong> {{.Time}}</p>
-                            <p><strong><i class="bi bi-telephone"></i> Телефон:</strong> {{.Phone}}</p>
-                            {{if .Comment}}
-                            <p><strong><i class="bi bi-chat-left-text"></i> Комментарий:</strong> {{.Comment}}</p>
+                <!-- Индивидуальные консультации -->
+                <div class="consultation-type">
+                    <h3 class="consultation-title">
+                        <i class="bi bi-person"></i> Индивидуальные консультации 
+                        <span class="day-count">{{.CountInd}} записей</span>
+                    </h3>
+                    <div class="cards-row">
+                        {{range .Forms}}
+                            {{if eq .TypeEvent "Индивидуальная консультация"}}
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="bi bi-person"></i> {{.FIO}}</h5>
+                                    <h6 class="card-subtitle"><i class="bi bi-briefcase"></i> {{.Position}}</h6>
+                                    <div class="card-text">
+                                        <p><strong><i class="bi bi-clock"></i> Время:</strong> {{.Time}}</p>
+                                        <p><strong><i class="bi bi-telephone"></i> Телефон:</strong> {{.Phone}}</p>
+                                        <!-- <p><strong><i class="bi bi-fonts"></i> Тип:</strong> {{.TypeEvent}}</p> -->
+                                        {{if .Comment}}
+                                        <p><strong><i class="bi bi-chat-left-text"></i> Комментарий:</strong> {{.Comment}}</p>
+                                        {{end}}
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn btn-action btn-cancel" onclick="cancelEvent(this)" data-event-id="{{.ID}}">
+                                            <i class="bi bi-x-circle"></i> Отменить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             {{end}}
-                        </div>
-                        <div class="card-actions">
-                            <button class="btn btn-action btn-cancel" onclick="cancelEvent(this)" data-event-id="{{.ID}}"><i class="bi bi-x-circle"></i> Отменить</button>
-                        </div>
+                        {{end}}
                     </div>
                 </div>
-                {{end}}
-            </div>
+                
+                <!-- Комната психологической разгрузки -->
+                <div class="consultation-type">
+                    <h3 class="consultation-title">
+                        <i class="bi bi-people"></i> Комната психологической разгрузки
+                        <span class="day-count">{{.CountRoom}} записей</span>
+                    </h3>
+                    <div class="cards-row">
+                        {{range .Forms}}
+                            {{if ne .TypeEvent "Индивидуальная консультация"}}
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="bi bi-person"></i> {{.FIO}}</h5>
+                                    <h6 class="card-subtitle"><i class="bi bi-briefcase"></i> {{.Position}}</h6>
+                                    <div class="card-text">
+                                        <p><strong><i class="bi bi-clock"></i> Время:</strong> {{.Time}}</p>
+                                        <p><strong><i class="bi bi-telephone"></i> Телефон:</strong> {{.Phone}}</p>
+                                        <!-- <p><strong><i class="bi bi-fonts"></i> Тип:</strong> {{.TypeEvent}}</p> -->
+                                        {{if .Comment}}
+                                        <p><strong><i class="bi bi-chat-left-text"></i> Комментарий:</strong> {{.Comment}}</p>
+                                        {{end}}
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn btn-action btn-cancel" onclick="cancelEvent(this)" data-event-id="{{.ID}}">
+                                            <i class="bi bi-x-circle"></i> Отменить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        {{end}}
+                    </div>
+                </div>
             {{else}}
-            <div class="empty-day">
-                <i class="bi bi-calendar-x" style="font-size: 2rem;"></i>
-                <p>Нет записей на эту дату</p>
-            </div>
+                <div class="empty-day">
+                    <i class="bi bi-calendar-x" style="font-size: 2rem;"></i>
+                    <p>Нет записей на эту дату</p>
+                </div>
             {{end}}
         </div>
         {{end}}
