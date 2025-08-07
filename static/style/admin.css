@@ -1,0 +1,186 @@
+body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px;
+}
+
+.consultation-type {
+    margin-bottom: 30px;
+}
+
+.consultation-title {
+    color: #2c3e50;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.admin-container {
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 1200px;
+    padding: 30px;
+    margin: 0 auto;
+}
+
+.admin-header {
+    text-align: center;
+    margin-bottom: 30px;
+    position: relative;
+    padding-right: 250px;
+}
+
+.admin-header h1 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.day-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.day-header {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.day-count {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+}
+
+.cards-row {
+    display: flex;
+    flex-wrap:wrap;
+    overflow-x: auto;
+    padding: 15px 5px;
+    gap: 20px;
+}
+
+.card {
+    min-width: 280px;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.card-title {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.card-subtitle {
+    color: #3498db;
+    font-weight: 500;
+    margin-bottom: 15px;
+}
+
+.card-text {
+    color: #34495e;
+}
+
+.card-text p {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.card-text strong {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.empty-day {
+    color: #7f8c8d;
+    font-style: italic;
+    text-align: center;
+    padding: 30px;
+    background-color: white;
+    border-radius: 8px;
+    border: 2px dashed #e0e0e0;
+}
+
+/* Кнопки действий */
+.card-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn-action {
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+}
+
+.btn-cancel:hover {
+    background-color: #c0392b;
+}
+.archive-btn .slots-btn {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.archive-btn:hover{
+    background-color: #2980b9;
+    color: white;
+    transform: translateY(-2px);
+}
+
+
+.slots-btn:hover {
+    background-color: #27ae60;
+}
+
+.header-buttons {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    display: flex;
+    gap: 10px;
+}
