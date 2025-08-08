@@ -50,7 +50,7 @@ func main() {
 
 	mux.HandleFunc("DELETE /admin/event", adminAuth(handl.DeleteEvent, c))
 
-	mux.HandleFunc("GET /slots", adminAuth(handl.SlotPage, c))
+	mux.HandleFunc("GET /admin/slots", adminAuth(handl.SlotPage, c))
 
 	mux.HandleFunc("GET /slots_ind", handl.GetSlots)
 
@@ -72,7 +72,7 @@ func main() {
 
 	mux.HandleFunc("PATCH /slots_room/days", adminAuth(handl.PatchSlotDayRoom, c))
 
-	mux.HandleFunc("GET /employees", adminAuth(handl.EmployeePage, c))
+	mux.HandleFunc("GET /admin/employees", adminAuth(handl.EmployeePage, c))
 
 	mux.HandleFunc("GET /employees_ind", handl.GetEmployees)
 
